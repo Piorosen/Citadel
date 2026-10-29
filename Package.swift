@@ -16,8 +16,10 @@ let package = Package(
         ),
     ],
     dependencies: [
-        // .package(path: "/Users/joannisorlandos/git/joannis/swift-nio-ssh"),
-        .package(url: "https://github.com/Wellz26/swift-nio-ssh.git", "0.3.4" ..< "0.4.0"),
+        // Bottari keeps this package and its swift-nio-ssh fork (which adds SSH
+        // agent forwarding) side by side as submodules in Packages/; both name
+        // the same local copy, so SwiftPM sees one package, not two.
+        .package(path: "../swift-nio-ssh"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.81.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.0.0"),
         .package(url: "https://github.com/attaswift/BigInt.git", from: "5.2.0"),
