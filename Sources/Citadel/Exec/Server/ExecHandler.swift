@@ -118,6 +118,11 @@ final class ExecHandler: ChannelDuplexHandler {
         }
         
         let (ours, theirs) = GlueHandler.matchedPair()
+        // Output still in the pipe when the process exits has to reach the
+        // client before the channel closes, so closing waits for the end of
+        // stdout (or a second, should the pipe never report it).
+        let outputDrained = channel.eventLoop.makePromise(of: Void.self)
+        channel.eventLoop.scheduleTask(in: .seconds(1)) { outputDrained.succeed(()) }
         
         // Ok, great, we've sorted stdout and stdin. For stderr we need a different strategy: we just park a thread for this.
         let stderrHandle = handler.stderrPipe.fileHandleForReading
@@ -139,7 +144,7 @@ final class ExecHandler: ChannelDuplexHandler {
             NIOPipeBootstrap(group: channel.eventLoop)
                 .channelOption(ChannelOptions.allowRemoteHalfClosure, value: true)
                 .channelInitializer { pipeChannel in
-                    pipeChannel.pipeline.addHandlers(SSHInboundChannelDataWrapper(), SSHOutboundChannelDataUnwrapper(), theirs)
+                    pipeChannel.pipeline.addHandlers(EndOfInputWatcher(drained: outputDrained), SSHInboundChannelDataWrapper(), SSHOutboundChannelDataUnwrapper(), theirs)
                 }.withPipes(
                     inputDescriptor: dup(handler.stdoutPipe.fileHandleForReading.fileDescriptor),
                     outputDescriptor: dup(handler.stdinPipe.fileHandleForWriting.fileDescriptor)
@@ -169,7 +174,9 @@ final class ExecHandler: ChannelDuplexHandler {
             }
         }.flatMap { pipeChannel in
             successPromise.futureResult.flatMap { code in
-                pipeChannel.close(mode: .all).map { code }
+                outputDrained.futureResult.flatMap {
+                    pipeChannel.close(mode: .all)
+                }.map { code }
             }
         }.flatMap { code in
             channel.triggerUserOutboundEvent(SSHChannelRequestEvent.ExitStatus(exitStatus: code))
@@ -187,5 +194,28 @@ final class ExecHandler: ChannelDuplexHandler {
                 }
             }
         }
+    }
+}
+
+/// Completes `drained` once the pipe has been read to its end.
+final class EndOfInputWatcher: ChannelInboundHandler, @unchecked Sendable {
+    typealias InboundIn = NIOAny
+
+    private let drained: EventLoopPromise<Void>
+
+    init(drained: EventLoopPromise<Void>) {
+        self.drained = drained
+    }
+
+    func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
+        if case .inputClosed? = event as? ChannelEvent {
+            drained.succeed(())
+        }
+        context.fireUserInboundEventTriggered(event)
+    }
+
+    func channelInactive(context: ChannelHandlerContext) {
+        drained.succeed(())
+        context.fireChannelInactive()
     }
 }
