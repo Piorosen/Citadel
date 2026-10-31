@@ -8,6 +8,20 @@ struct SFTPDirectoryHandleIterator {
 }
 
 final class SFTPServerInboundHandler: ChannelInboundHandler {
+    /// The SFTP status that best says why a delegate call failed.
+    static func statusCode(for error: Error) -> SFTPStatusCode {
+        if let status = error as? SFTPMessage.Status { return status.errorCode }
+        let error = error as NSError
+        switch (error.domain, error.code) {
+        case (NSCocoaErrorDomain, NSFileNoSuchFileError), (NSCocoaErrorDomain, NSFileReadNoSuchFileError), (NSPOSIXErrorDomain, Int(ENOENT)):
+            return .noSuchFile
+        case (NSCocoaErrorDomain, NSFileReadNoPermissionError), (NSCocoaErrorDomain, NSFileWriteNoPermissionError), (NSPOSIXErrorDomain, Int(EACCES)), (NSPOSIXErrorDomain, Int(EPERM)):
+            return .permissionDenied
+        default:
+            return .failure
+        }
+    }
+
     typealias InboundIn = SFTPMessage
     
     let logger: Logger
@@ -255,7 +269,20 @@ final class SFTPServerInboundHandler: ChannelInboundHandler {
                     )
                 ))
             )
-        }.flatMapErrorThrowing { _ in }
+        }.flatMapError { error in
+            // A request that fails still gets an answer; without one the
+            // client waits for it forever.
+            context.channel.writeAndFlush(
+                SFTPMessage.status(
+                    SFTPMessage.Status(
+                        requestId: command.requestId,
+                        errorCode: Self.statusCode(for: error),
+                        message: "\(error)",
+                        languageTag: "EN"
+                    )
+                )
+            )
+        }
     }
     
     func lstat(command: SFTPMessage.LStat, context: ChannelHandlerContext) {
@@ -273,7 +300,20 @@ final class SFTPServerInboundHandler: ChannelInboundHandler {
                     )
                 ))
             )
-        }.flatMapErrorThrowing { _ in }
+        }.flatMapError { error in
+            // A request that fails still gets an answer; without one the
+            // client waits for it forever.
+            context.channel.writeAndFlush(
+                SFTPMessage.status(
+                    SFTPMessage.Status(
+                        requestId: command.requestId,
+                        errorCode: Self.statusCode(for: error),
+                        message: "\(error)",
+                        languageTag: "EN"
+                    )
+                )
+            )
+        }
     }
     
     func realPath(command: SFTPMessage.RealPath, context: ChannelHandlerContext) {
@@ -291,7 +331,20 @@ final class SFTPServerInboundHandler: ChannelInboundHandler {
                     )
                 ))
             )
-        }.flatMapErrorThrowing { _ in }
+        }.flatMapError { error in
+            // A request that fails still gets an answer; without one the
+            // client waits for it forever.
+            context.channel.writeAndFlush(
+                SFTPMessage.status(
+                    SFTPMessage.Status(
+                        requestId: command.requestId,
+                        errorCode: Self.statusCode(for: error),
+                        message: "\(error)",
+                        languageTag: "EN"
+                    )
+                )
+            )
+        }
     }
     
     func openDir(command: SFTPMessage.OpenDir, context: ChannelHandlerContext) {
@@ -317,7 +370,20 @@ final class SFTPServerInboundHandler: ChannelInboundHandler {
             )
         }.flatMap { handle in
             context.writeAndFlush(NIOAny(handle))
-        }.flatMapErrorThrowing { _ in }
+        }.flatMapError { error in
+            // A request that fails still gets an answer; without one the
+            // client waits for it forever.
+            context.channel.writeAndFlush(
+                SFTPMessage.status(
+                    SFTPMessage.Status(
+                        requestId: command.requestId,
+                        errorCode: Self.statusCode(for: error),
+                        message: "\(error)",
+                        languageTag: "EN"
+                    )
+                )
+            )
+        }
     }
     
     func readDir(command: SFTPMessage.ReadDir, context: ChannelHandlerContext) {
@@ -408,7 +474,20 @@ final class SFTPServerInboundHandler: ChannelInboundHandler {
                     )
                 )
             )
-        }.flatMapErrorThrowing { _ in }
+        }.flatMapError { error in
+            // A request that fails still gets an answer; without one the
+            // client waits for it forever.
+            context.channel.writeAndFlush(
+                SFTPMessage.status(
+                    SFTPMessage.Status(
+                        requestId: command.requestId,
+                        errorCode: Self.statusCode(for: error),
+                        message: "\(error)",
+                        languageTag: "EN"
+                    )
+                )
+            )
+        }
     }
     
     func fileSetStat(command: SFTPMessage.FileSetStat, context: ChannelHandlerContext) {
@@ -459,7 +538,20 @@ final class SFTPServerInboundHandler: ChannelInboundHandler {
                     )
                 )
             )
-        }.flatMapErrorThrowing { _ in }
+        }.flatMapError { error in
+            // A request that fails still gets an answer; without one the
+            // client waits for it forever.
+            context.channel.writeAndFlush(
+                SFTPMessage.status(
+                    SFTPMessage.Status(
+                        requestId: command.requestId,
+                        errorCode: Self.statusCode(for: error),
+                        message: "\(error)",
+                        languageTag: "EN"
+                    )
+                )
+            )
+        }
     }
     
     func symlink(command: SFTPMessage.Symlink, context:ChannelHandlerContext) {
@@ -482,7 +574,20 @@ final class SFTPServerInboundHandler: ChannelInboundHandler {
                     )
                 )
             )
-        }.flatMapErrorThrowing { _ in }
+        }.flatMapError { error in
+            // A request that fails still gets an answer; without one the
+            // client waits for it forever.
+            context.channel.writeAndFlush(
+                SFTPMessage.status(
+                    SFTPMessage.Status(
+                        requestId: command.requestId,
+                        errorCode: Self.statusCode(for: error),
+                        message: "\(error)",
+                        languageTag: "EN"
+                    )
+                )
+            )
+        }
     }
 
     func rename(command: SFTPMessage.Rename, context:ChannelHandlerContext) {
@@ -506,7 +611,20 @@ final class SFTPServerInboundHandler: ChannelInboundHandler {
                     )
                 )
             )
-        }.flatMapErrorThrowing { _ in }
+        }.flatMapError { error in
+            // A request that fails still gets an answer; without one the
+            // client waits for it forever.
+            context.channel.writeAndFlush(
+                SFTPMessage.status(
+                    SFTPMessage.Status(
+                        requestId: command.requestId,
+                        errorCode: Self.statusCode(for: error),
+                        message: "\(error)",
+                        languageTag: "EN"
+                    )
+                )
+            )
+        }
     }
 
     func readlink(command: SFTPMessage.Readlink, context:ChannelHandlerContext) {
