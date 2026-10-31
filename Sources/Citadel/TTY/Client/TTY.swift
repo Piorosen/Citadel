@@ -318,6 +318,14 @@ extension SSHClient {
             return createChannel.futureResult
         }.get()
 
+        // A reader that stops early (its task cancelled) wants none of the
+        // rest; closing the channel lets the server stop the command too.
+        streamContinuation.onTermination = { termination in
+            if case .cancelled = termination {
+                channel.close(promise: nil)
+            }
+        }
+
         for env in environment {
             try await channel.triggerUserOutboundEvent(env)
         }
