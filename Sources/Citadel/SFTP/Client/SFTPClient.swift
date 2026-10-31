@@ -169,29 +169,47 @@ public final class SFTPClient: Sendable {
             throw SFTPError.invalidResponse
         }
         
+        // The server keeps the directory open until it is closed, and most
+        // servers allow only so many open handles per session.
+        let names: [SFTPMessage.Name]
+        do {
+            names = try await readDirectory(handle.handle)
+        } catch {
+            try? await closeHandle(handle.handle)
+            throw error
+        }
+        try? await closeHandle(handle.handle)
+        return names
+    }
+
+    private func readDirectory(_ handle: ByteBuffer) async throws -> [SFTPMessage.Name] {
         var names = [SFTPMessage.Name]()
         var response = try await sendRequest(
             .readdir(
                 .init(
                     requestId: self.allocateRequestId(),
-                    handle: handle.handle
+                    handle: handle
                 )
             )
         )
-        
+
         while case .name(let name) = response {
             names.append(name)
             response = try await sendRequest(
                 .readdir(
                     .init(
                         requestId: self.allocateRequestId(),
-                        handle: handle.handle
+                        handle: handle
                     )
                 )
             )
         }
-        
+
         return names
+    }
+
+    private func closeHandle(_ handle: ByteBuffer) async throws {
+        _ = try await sendRequest(.closeFile(.init(requestId: self.allocateRequestId(), handle: handle)))
     }
     
     /// Get the attributes of a file on the SFTP server.
