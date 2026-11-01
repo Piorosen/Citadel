@@ -91,6 +91,14 @@ final class ClientHandshakeHandler: ChannelInboundHandler, Sendable {
     func errorCaught(context: ChannelHandlerContext, error: any Error) {
         self.promise.fail(error)
     }
+
+    /// The channel closed: the other end hung up, or the connection under
+    /// this one went away. Before login that fails it at once; otherwise the
+    /// caller would wait out the login timeout and hear "timed out" about a
+    /// server that said no straight away. (After login it changes nothing.)
+    func channelClosed() {
+        self.promise.fail(ChannelError.eof)
+    }
     
     deinit {
         struct Disconnected: Error {}
@@ -171,6 +179,9 @@ final class SSHClientSession: Sendable {
             eventLoop: channel.eventLoop,
             loginTimeout: .seconds(10)
         )
+        // NIOSSHHandler does not pass channelInactive on, so the handshake
+        // handler behind it never hears of a close; the channel says it here.
+        channel.closeFuture.whenComplete { _ in handshakeHandler.channelClosed() }
         var clientConfiguration = SSHClientConfiguration(
             userAuthDelegate: settings.authenticationMethod(),
             serverAuthDelegate: settings.hostKeyValidator
