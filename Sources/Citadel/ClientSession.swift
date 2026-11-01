@@ -66,6 +66,10 @@ final class ClientHandshakeHandler: ChannelInboundHandler, Sendable {
     typealias InboundIn = Any
 
     private let promise: EventLoopPromise<Void>
+    /// Set once the promise is completed, so later endings leave it alone:
+    /// completing it again from deinit, after the event loop has shut down,
+    /// is what SwiftNIO warns about (and means to make a crash).
+    private let finished = NIOLockedValueBox(false)
     let logger = Logger(label: "nl.orlandos.citadel.handshake")
 
     /// A future that will be fulfilled when the handshake is complete.
@@ -76,20 +80,32 @@ final class ClientHandshakeHandler: ChannelInboundHandler, Sendable {
     init(eventLoop: EventLoop, loginTimeout: TimeAmount) {
         let promise = eventLoop.makePromise(of: Void.self)
         self.promise = promise
+        let finished = self.finished
 
         eventLoop.scheduleTask(deadline: .now() + loginTimeout) {
+            guard !finished.withLockedValue({ $0 }) else { return }
+            finished.withLockedValue { $0 = true }
             promise.fail(ChannelError.connectTimeout(loginTimeout))
         }
     }
 
+    private func finish(_ result: Result<Void, Error>) {
+        let first = finished.withLockedValue { done in
+            defer { done = true }
+            return !done
+        }
+        guard first else { return }
+        promise.completeWith(result)
+    }
+
     func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
         if event is UserAuthSuccessEvent {
-            self.promise.succeed(())
+            finish(.success(()))
         }
     }
 
     func errorCaught(context: ChannelHandlerContext, error: any Error) {
-        self.promise.fail(error)
+        finish(.failure(error))
     }
 
     /// The channel closed: the other end hung up, or the connection under
@@ -97,12 +113,12 @@ final class ClientHandshakeHandler: ChannelInboundHandler, Sendable {
     /// caller would wait out the login timeout and hear "timed out" about a
     /// server that said no straight away. (After login it changes nothing.)
     func channelClosed() {
-        self.promise.fail(ChannelError.eof)
+        finish(.failure(ChannelError.eof))
     }
     
     deinit {
         struct Disconnected: Error {}
-        self.promise.fail(Disconnected())
+        finish(.failure(Disconnected()))
     }
 }
 

@@ -619,11 +619,30 @@ final class SFTPResponses: Sendable {
         }
     }
     
+    let _closed = NIOLockedValueBox(false)
+
+    /// Fails what is still waiting: the version, unless it came, and the
+    /// requests not answered yet. Only the first call does anything: closing
+    /// the channel calls it, and deinit again, maybe after the event loop has
+    /// shut down, where completing a promise is what SwiftNIO warns about.
     func close() {
-        self.isInitialized = false
-        self.sftpVersion.fail(SFTPError.connectionClosed)
-        
-        for promise in self.responses.values {
+        let first = _closed.withLockedValue { closed in
+            defer { closed = true }
+            return !closed
+        }
+        guard first else { return }
+        let wasInitialized = _initialized.withLockedValue { value in
+            defer { value = false }
+            return value
+        }
+        if !wasInitialized {
+            self.sftpVersion.fail(SFTPError.connectionClosed)
+        }
+        let waiting = _responses.withLockedValue { responses in
+            defer { responses = [:] }
+            return responses
+        }
+        for promise in waiting.values {
             promise.fail(SFTPError.connectionClosed)
         }
     }
