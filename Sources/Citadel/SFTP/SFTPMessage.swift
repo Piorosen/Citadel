@@ -29,6 +29,7 @@ enum SFTPRequest: CustomDebugStringConvertible, Sendable {
     case mkdir(SFTPMessage.MkDir)
     case stat(SFTPMessage.Stat)
     case lstat(SFTPMessage.LStat)
+    case readlink(SFTPMessage.Readlink)
     case fstat(SFTPMessage.FileStat)
     case readdir(SFTPMessage.ReadDir)
     case opendir(SFTPMessage.OpenDir)
@@ -57,6 +58,8 @@ enum SFTPRequest: CustomDebugStringConvertible, Sendable {
             case .stat(let message):
                 return message.requestId
             case .lstat(let message):
+                return message.requestId
+            case .readlink(let message):
                 return message.requestId
             case .fstat(let message):
                 return message.requestId
@@ -96,6 +99,8 @@ enum SFTPRequest: CustomDebugStringConvertible, Sendable {
             return .stat(message)
         case .lstat(let message):
             return .lstat(message)
+        case .readlink(let message):
+            return .readlink(message)
         case .fstat(let message):
             return .fstat(message)
         case .readdir(let message):
@@ -124,6 +129,7 @@ enum SFTPRequest: CustomDebugStringConvertible, Sendable {
         case .mkdir(let message): return message.debugDescription
         case .stat(let message): return message.debugDescription
         case .lstat(let message): return message.debugDescription
+        case .readlink(let message): return message.debugDescription
         case .fstat(let message): return message.debugDescription
         case .readdir(let message): return message.debugDescription
         case .opendir(let message): return message.debugDescription

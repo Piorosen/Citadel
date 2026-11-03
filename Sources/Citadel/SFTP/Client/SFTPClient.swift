@@ -264,6 +264,24 @@ public final class SFTPClient: Sendable {
         return attributes.attributes
     }
     
+    /// Get the target of the symbolic link at `filePath`, as the link holds
+    /// it. This is equivalent to the `readlink()` system call.
+    public func readSymbolicLink(
+        at filePath: String
+    ) async throws -> String {
+        self.logger.info("SFTP requesting the target of the link at '\(filePath)'")
+        
+        guard case .name(let name) = try await sendRequest(.readlink(.init(
+            requestId: allocateRequestId(),
+            path: filePath
+        ))) else {
+            self.logger.warning("SFTP server returned bad response to readlink request, this is a protocol error")
+            throw SFTPError.invalidResponse
+        }
+        
+        return name.path
+    }
+    
     /// Open a file at the specified path on the SFTP server.
     ///
     /// - Parameters:
