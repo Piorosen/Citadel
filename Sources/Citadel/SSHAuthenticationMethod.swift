@@ -83,15 +83,14 @@ public final class SSHAuthenticationMethod: NIOSSHClientUserAuthenticationDelega
         availableMethods: NIOSSHAvailableUserAuthenticationMethods,
         nextChallengePromise: EventLoopPromise<NIOSSHUserAuthenticationOffer?>
     ) {
-        if implementations.isEmpty {
+        guard let implementation = implementations.first else {
             nextChallengePromise.fail(SSHClientError.allAuthenticationOptionsFailed)
             return
         }
-        
-        let implementation = implementations.removeFirst()
 
         switch implementation {
         case .user(let username, offer: let offer):
+            implementations.removeFirst()
             switch offer {
             case .password:
                 guard availableMethods.contains(.password) else {
@@ -114,6 +113,8 @@ public final class SSHAuthenticationMethod: NIOSSHClientUserAuthenticationDelega
             
             nextChallengePromise.succeed(NIOSSHUserAuthenticationOffer(username: username, serviceName: "", offer: offer))
         case .custom(let implementation):
+            // Asked again after each refusal, as NIOSSH asks any delegate,
+            // until it answers nil or fails the promise.
             implementation.nextAuthenticationType(availableMethods: availableMethods, nextChallengePromise: nextChallengePromise)
         }
     }
