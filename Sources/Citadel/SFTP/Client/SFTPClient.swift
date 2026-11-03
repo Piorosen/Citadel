@@ -243,6 +243,27 @@ public final class SFTPClient: Sendable {
         return attributes.attributes
     }
     
+    /// Get the attributes of the item at `filePath` itself: for a symbolic link,
+    /// those of the link, not of what it points to. This is equivalent to the
+    /// `lstat()` system call.
+    public func getLinkAttributes(
+        at filePath: String
+    ) async throws -> SFTPFileAttributes {
+        self.logger.info("SFTP requesting link attributes at '\(filePath)'")
+        
+        let response = try await sendRequest(.lstat(.init(
+            requestId: allocateRequestId(),
+            path: filePath
+        )))
+        
+        guard case .attributes(let attributes) = response else {
+            self.logger.warning("SFTP server returned bad response to lstat request, this is a protocol error")
+            throw SFTPError.invalidResponse
+        }
+        
+        return attributes.attributes
+    }
+    
     /// Open a file at the specified path on the SFTP server.
     ///
     /// - Parameters:

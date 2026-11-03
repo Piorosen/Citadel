@@ -288,7 +288,7 @@ final class SFTPServerInboundHandler: ChannelInboundHandler {
     func lstat(command: SFTPMessage.LStat, context: ChannelHandlerContext) {
         let promise = context.eventLoop.makePromise(of: SFTPFileAttributes.self)
         promise.completeWithTask {
-            try await self.delegate.fileAttributes(atPath: command.path, context: self.makeContext())
+            try await self.delegate.linkAttributes(atPath: command.path, context: self.makeContext())
         }
         
         _ = promise.futureResult.flatMap { attributes -> EventLoopFuture<Void> in

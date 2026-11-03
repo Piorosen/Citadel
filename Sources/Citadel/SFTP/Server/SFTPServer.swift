@@ -56,6 +56,9 @@ public protocol SFTPDelegate: Sendable {
     /// Returns the attributes for the file at the given path. This is equivalent to the `stat()` system call.
     func fileAttributes(atPath path: String, context: SSHContext) async throws -> SFTPFileAttributes
 
+    /// Returns the attributes for the item at the given path itself, without following a symbolic link there. This is equivalent to the `lstat()` system call.
+    func linkAttributes(atPath path: String, context: SSHContext) async throws -> SFTPFileAttributes
+
     /// Opens a file at the given path with the given attributes and flags. This is equivalent to the `open()` system call.
     func openFile(_ filePath: String, withAttributes: SFTPFileAttributes, flags: SFTPOpenFileFlags, context: SSHContext) async throws -> SFTPFileHandle
     
@@ -86,6 +89,13 @@ public protocol SFTPDelegate: Sendable {
 
     /// Renames a file
     func rename(oldPath: String, newPath: String, flags: UInt32, context: SSHContext) async throws -> SFTPStatusCode
+}
+
+extension SFTPDelegate {
+    /// A delegate with no links of its own answers lstat as it answers stat.
+    public func linkAttributes(atPath path: String, context: SSHContext) async throws -> SFTPFileAttributes {
+        try await fileAttributes(atPath: path, context: context)
+    }
 }
 
 enum SFTPServerSubsystem {
